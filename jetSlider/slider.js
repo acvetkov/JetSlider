@@ -3,27 +3,32 @@
  * @author www.fresh-team.ru
  *
  * Структура параметров:
+ * должны устанавливаться перед инициализацией:
  * - shuffle (bool),
- * - resizable (bool),
+ * - resizable (bool)
+ * может уснанавливаться во время выполнения:
  * - transition_effect (standard, moon)
  *
  * DOM-элемент слайдера генерирует события:
  * - onSliderInit - после инициализации слайдера и прогрузки всех кадров,
+ * - onRewindStart - при начале перемотки,
  * - onEnterFrame - при входе на новый кадр,
  * - onSliderResize - при изменении размера слайдера
  *
  * К jQuery-объекту элемента добавляются методы:
- * - back(n)
- * - forward(n)
- *
- * TODO: переписать комменты на бездуховном языке
+ * - back(n) - на n кадров назад
+ * - forward(n) - на n кадров вперед
+ * - params([newParams]) - получить/изменить параметры
+ * - activeFrame() - получить активный кадр
  */
-(function ($) {
+(function($) {
     'use strict';
     $.fn.jetSlider = function(params) {
         var sliderObject = new JetSlider(this, params);
         this.forward = sliderObject.forward;
         this.back = sliderObject.back;
+        this.params = sliderObject.params;
+        this.activeFrame = sliderObject.activeFrame;
     };
 
     function JetSlider(sliderDomObject, params) {
@@ -33,23 +38,45 @@
         //Публичные методы
         this.forward = forward;
         this.back = back;
+        this.params = getSetParams;
+        this.activeFrame = getActiveFrame;
 
+        //Переменные
         var jetSliderSelf = this;
         var tipWindowNode = null;
         var sliderWidth = 0;
         var sliderHeight = 0;
         var framesCount = 0;
+
         var oldOffset = 0;
         var framesOffset = 0;
+
         var lockRewind = false;
+        var lockAdditionalAnimation = false;
 
         var framesCollection;
         var activeFrame;
 
-        setParams();
+        //Геттеры/сеттеры
+        function getActiveFrame() {
+            return activeFrame;
+        }
+
+        function getSetParams(newParams) {
+            if (newParams != undefined) {
+                for (var key in newParams)
+                    if (newParams.hasOwnProperty(key))
+                        params[key] = newParams[key];
+            }
+
+            return params;
+        }
+
+        //Работа
+        initParams();
         initSlider();
 
-        function setParams() {
+        function initParams() {
             if (!('shuffle' in params))
                 params['shuffle'] = false;
 
@@ -82,7 +109,7 @@
         function shuffleFrames() {
             var framesDomObjects = framesCollection.get();
             var shuffledDomObjects = [];
-            for (var i=0; i<framesCount; ++i) {
+            for (var i = 0; i < framesCount; ++i) {
                 var random = Math.floor(Math.random() * framesDomObjects.length);
                 var randElem = $(framesDomObjects[random]).clone(true);
                 framesDomObjects.splice(random, 1);
@@ -98,10 +125,9 @@
 
         function buildFrames() {
             setFramesLeft();
-            if (params['transition_effect'] == 'moon' && !activeFrame) {
-                activeFrame = $('.jet-slider-frames li:first', sliderDomObject);
-                activeFrame.addClass('jet-slider-active-frame');
-            }
+            activeFrame = $('.jet-slider-frames li:first', sliderDomObject);
+            activeFrame.addClass('jet-slider-active-frame');
+            sliderDomObject.trigger('onEnterFrame', [jetSliderSelf]);
         }
 
         function setFramesLeft() {
@@ -115,11 +141,24 @@
         function makeResize() {
             sliderWidth = sliderDomObject.width();
             sliderHeight = $('.jet-slider-frames', sliderDomObject).height();
-            buildFrames();
+
+            if (activeFrame.is(':animated')) {
+                lockAdditionalAnimation = true;
+                activeFrame.stop(true, true);
+            }
+
+            if (framesCollection.is(':animated')) {
+                lockAdditionalAnimation = true;
+                framesCollection.stop(true, true);
+            }
+
+            setFramesLeft();
             sliderDomObject.trigger('onSliderResize', [jetSliderSelf]);
         }
 
         function bindNavEvents() {
+            var startTouchX;
+
             $('.jet-slider-button-forward', sliderDomObject).click(function() {
                 forward();
                 return false;
@@ -128,6 +167,26 @@
             $('.jet-slider-button-back', sliderDomObject).click(function() {
                 back();
                 return false;
+            });
+
+            framesCollection.bind('touchstart', function(e) {
+                e.preventDefault();
+                var touchesList = e.originalEvent['changedTouches'];
+                if (touchesList && touchesList.length)
+                    startTouchX = touchesList[0]['pageX'];
+                else
+                    startTouchX = 0;
+            });
+
+            framesCollection.bind('touchend', function(e) {
+                e.preventDefault();
+                var touchesList = e.originalEvent['changedTouches'];
+                if (touchesList && touchesList.length) {
+                    if (touchesList[0]['pageX'] < startTouchX)
+                        back();
+                    else
+                        forward();
+                }
             });
         }
 
@@ -145,7 +204,7 @@
                 return false;
             });
 
-            sliderDomObject.bind('onEnterFrame', setIndicatorActive);
+            sliderDomObject.bind('onRewindStart', setIndicatorActive);
         }
 
         function setIndicatorActive() {
@@ -157,7 +216,7 @@
         function buildTips() {
             tipWindowNode = $('.jet-slider-tip-window:first', sliderDomObject);
             fillTipText(false);
-            sliderDomObject.bind('onEnterFrame', fillTipText);
+            sliderDomObject.bind('onRewindStart', fillTipText);
         }
 
         function fillTipText(useFade) {
@@ -218,8 +277,6 @@
             oldOffset = framesOffset;
             framesOffset -= n;
             makeRewind();
-
-            sliderDomObject.trigger('onEnterFrame', [jetSliderSelf]);
         }
 
         function back(n) {
@@ -232,100 +289,125 @@
             oldOffset = framesOffset;
             framesOffset += n;
             makeRewind();
-
-            sliderDomObject.trigger('onEnterFrame', [jetSliderSelf]);
         }
 
         function makeRewind() {
             lockRewind = true;
+
             if (params['transition_effect'] == 'moon')
                 moonRewind();
             else
                 standardRewind();
+
+            sliderDomObject.trigger('onRewindStart', [jetSliderSelf]);
         }
 
-        function moonRewind(targLeft, dir) {
-            activeFrame = $('.jet-slider-active-frame', sliderDomObject);
-            sliderDomObject.bind('onSliderResize', makeAnimResizeCorr);
+        function moonRewind() {
+            var shiftParams = makeFramesShiftParams();
 
-            var leftShift = (dir > 0) ? '+=10%' : '-=10%';
-            activeFrame.animate(
-                {
-                    'left': leftShift,
-                    'opacity' : 0
-                },
-                'slow',
-                function () {
-                    activeFrame.css('left', 0);
-                    activeFrame.css('opacity', 1);
-                    framesCollection.css('left', targLeft);
+            var preShiftValue = sliderWidth * 0.1;
+            var leftPreShift;
+            if (shiftParams['dlt_frames'] > 0)
+                leftPreShift = '+=' + preShiftValue + 'px';
+            else
+                leftPreShift = '-=' + preShiftValue + 'px';
 
-                    framesCollection.removeClass('jet-slider-active-frame');
-                    framesCollection.each(function() {
-                        var elem = $(this);
-                        if (parseInt(elem.css('left')) == 0) {
-                            elem.addClass('jet-slider-active-frame');
-                            activeFrame = elem;
-                        }
-                    });
+            var animParams = {
+                'left': leftPreShift,
+                'opacity': 0
+            };
+            activeFrame.animate(animParams, 500, onOldFrameShifted);
 
-                    activeFrame.hide();
-                    activeFrame.fadeIn();
+            function onOldFrameShifted() {
+                framesCollection.hide();
+                activeFrame.css('left', 0);
+                activeFrame.css('opacity', 1);
+                framesCollection.css('left', shiftParams['targ_left']);
+                changeActiveFrame();
 
-                    sliderDomObject.unbind('onSliderResize', makeAnimResizeCorr);
-                    lockRewind = false;
-                }
-            );
-        }
-
-        function makeAnimResizeCorr() {
-            sliderDomObject.unbind('onSliderResize', makeAnimResizeCorr);
-
-            if (activeFrame)
-                activeFrame.stop(true, true);
-            framesCollection.stop(true, true);
-
-            setFramesLeft();
-        }
-
-        function makeDltOffset() {
-            var dltOffset;
-
-            if (framesOffset <= -framesCount) {
-                dltOffset = -(framesCount - 1);
-                framesOffset = 0;
+                if (lockAdditionalAnimation)
+                    onComplete();
+                else
+                    showNewFrameAnimated();
             }
-            else if (framesOffset > 0) {
-                dltOffset = framesCount - 1;
-                framesOffset = 1 - framesCount;
+
+            function showNewFrameAnimated() {
+                var leftPreShift;
+                if (shiftParams['dlt_frames'] > 0)
+                    leftPreShift = '-=' + preShiftValue + 'px';
+                else
+                    leftPreShift = '+=' + preShiftValue + 'px';
+                activeFrame.css('left', leftPreShift);
+                activeFrame.css('opacity', 0);
+
+                var animParams = {
+                    'left': 0,
+                    'opacity': 1
+                };
+                framesCollection.show();
+                activeFrame.animate(animParams, 500, onComplete);
+            }
+
+            function onComplete() {
+                framesCollection.show();
+                lockAdditionalAnimation = false;
+                lockRewind = false;
+                sliderDomObject.trigger('onEnterFrame', [jetSliderSelf]);
+            }
+        }
+
+        function makeFramesShiftParams() {
+            var dltFrames = makeDltFrames();
+            var targLeftValue = Math.abs(sliderWidth * dltFrames);
+
+            var targLeft;
+            if (dltFrames > 0)
+                targLeft = '+=' + targLeftValue + 'px';
+            else
+                targLeft = '-=' + targLeftValue + 'px';
+
+            return {'targ_left': targLeft, 'dlt_frames': dltFrames};
+        }
+
+        function makeDltFrames() {
+            var curFrame = -framesOffset;
+            var targFrame;
+            var dltFrames;
+
+            if (curFrame >= framesCount) {
+                dltFrames = framesCount - 1;
+                targFrame = 0;
+            }
+            else if (curFrame < 0) {
+                dltFrames = 1 - framesCount;
+                targFrame = framesCount - 1;
             }
             else {
-                dltOffset = -(framesOffset - oldOffset);
+                dltFrames = framesOffset - oldOffset;
+                targFrame = curFrame;
             }
 
-            return dltOffset;
+            framesOffset = -targFrame;
+            return dltFrames;
+        }
+
+        function changeActiveFrame() {
+            activeFrame.removeClass('jet-slider-active-frame');
+            activeFrame = $(framesCollection[-framesOffset]);
+            activeFrame.addClass('jet-slider-active-frame');
         }
 
         function standardRewind() {
-            sliderDomObject.bind('onSliderResize', makeAnimResizeCorr);
+            var targLeft = makeFramesShiftParams()['targ_left'];
+            var params = {'left': targLeft};
+            framesCollection.animate(params, 'slow', onComplete);
 
-            var dltOffset = makeDltOffset();
-            var targLeftValue = Math.abs(sliderWidth*dltOffset);
-
-            var targLeft;
-            if (dltOffset < 0)
-                targLeft = '+='+targLeftValue+'px';
-            else
-                targLeft = '-='+targLeftValue+'px';
-
-            framesCollection.animate(
-                {'left': targLeft},
-                'slow',
-                function () {
-                    sliderDomObject.unbind('onSliderResize', makeAnimResizeCorr);
-                    lockRewind = false;
-                }
-            );
+            function onComplete() {
+                changeActiveFrame();
+                lockAdditionalAnimation = false;
+                lockRewind = false;
+                sliderDomObject.trigger('onEnterFrame', [jetSliderSelf]);
+            }
         }
     }
 })(jQuery);
