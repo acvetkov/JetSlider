@@ -6,6 +6,8 @@
  * должны устанавливаться перед инициализацией:
  * - shuffle (bool),
  * - resizable (bool)
+ * - auto (bool) set autosliding mode
+ * - delay (number) delay  for autosliding in milliseconds
  * может уснанавливаться во время выполнения:
  * - transition_effect (standard, moon)
  *
@@ -57,6 +59,14 @@
         var framesCollection;
         var activeFrame;
 
+        var rewindDuration = 500;
+
+        var autoMode = (('auto' in params) && params['auto']);
+        var minDelay = 2000 + rewindDuration;
+        var maxDelay = 60000 + rewindDuration;
+        var autoHandler = 0;
+        var delay = 0;
+
         //Геттеры/сеттеры
         function getActiveFrame() {
             return activeFrame;
@@ -103,6 +113,10 @@
             bindNavEvents();
             bindIndicatorEvents();
             buildTips();
+
+            if (autoMode)
+                setAutoMode();
+
             checkSliderReady();
         }
 
@@ -161,11 +175,13 @@
 
             $('.jet-slider-button-forward', sliderDomObject).click(function() {
                 forward();
+                if (autoMode) updateAutoModeInterval();
                 return false;
             });
 
             $('.jet-slider-button-back', sliderDomObject).click(function() {
                 back();
+                if (autoMode) updateAutoModeInterval();
                 return false;
             });
 
@@ -187,6 +203,7 @@
                     else
                         forward();
                 }
+                if (autoMode) updateAutoModeInterval();
             });
         }
 
@@ -201,6 +218,7 @@
                 else
                     back(-deltaFrame);
 
+                if (autoMode) updateAutoModeInterval();
                 return false;
             });
 
@@ -240,6 +258,24 @@
             else {
                 tipWindowNode.hide();
             }
+        }
+
+        function setAutoMode() {
+            if (!('delay' in params) || params['delay'] > maxDelay || params['delay'] < minDelay)
+                delay = 5000 + rewindDuration;
+            else
+                delay = params['delay'] + rewindDuration;
+
+            sliderDomObject.bind('onSliderInit', function(){
+                updateAutoModeInterval();
+            });
+        }
+
+        function updateAutoModeInterval() {
+            clearInterval(autoHandler);
+            autoHandler = setInterval(function() {
+                forward();
+            }, delay);
         }
 
         function checkSliderReady() {
@@ -316,7 +352,7 @@
                 'left': leftPreShift,
                 'opacity': 0
             };
-            activeFrame.animate(animParams, 500, onOldFrameShifted);
+            activeFrame.animate(animParams, rewindDuration, onOldFrameShifted);
 
             function onOldFrameShifted() {
                 framesCollection.hide();
@@ -345,7 +381,7 @@
                     'opacity': 1
                 };
                 framesCollection.show();
-                activeFrame.animate(animParams, 500, onComplete);
+                activeFrame.animate(animParams, rewindDuration, onComplete);
             }
 
             function onComplete() {
