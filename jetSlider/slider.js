@@ -1,3 +1,4 @@
+/*global jQuery*/
 /**
  * Слайдер JetHelix
  * @author www.fresh-team.ru
@@ -34,14 +35,16 @@
     };
 
     function JetSlider(sliderDomObject, params) {
-        if (params == undefined)
-            params = {};
+        params = params || {};
 
         //Публичные методы
         this.forward = forward;
         this.back = back;
         this.params = getSetParams;
         this.activeFrame = getActiveFrame;
+
+        this.framesCount = getFramesCount;
+        this.currentFrame = getCurrentFrame;
 
         //Переменные
         var jetSliderSelf = this;
@@ -61,11 +64,12 @@
 
         var rewindDuration = 500;
 
-        var autoMode = (('auto' in params) && params['auto']);
+        var autoMode = (typeof params.auto !== "undefined" && params.auto === true);
         var minDelay = 2000 + rewindDuration;
         var maxDelay = 60000 + rewindDuration;
         var autoHandler = 0;
         var delay = 0;
+        var _delay = 0;
 
         //Геттеры/сеттеры
         function getActiveFrame() {
@@ -73,13 +77,23 @@
         }
 
         function getSetParams(newParams) {
-            if (newParams != undefined) {
-                for (var key in newParams)
-                    if (newParams.hasOwnProperty(key))
+            if (typeof newParams !== "undefined") {
+                for (var key in newParams) {
+                    if (newParams.hasOwnProperty(key)) {
                         params[key] = newParams[key];
+                    }
+                }
             }
 
             return params;
+        }
+
+        function getFramesCount() {
+            return framesCount;
+        }
+
+        function getCurrentFrame() {
+            return -framesOffset + 1;
         }
 
         //Работа
@@ -87,36 +101,34 @@
         initSlider();
 
         function initParams() {
-            if (!('shuffle' in params))
-                params['shuffle'] = false;
-
-            if (!('resizable' in params))
-                params['resizable'] = false;
-
-            if (!('transition_effect' in params))
-                params['transition_effect'] = 'standard';
+            params.shuffle = params.shuffle || false;
+            params.resizable = params.resizable || false;
+            params.transition_effect = params.transition_effect || 'standard';
         }
 
         function initSlider() {
             framesCollection = $('.jet-slider-frames li', sliderDomObject);
             framesCount = framesCollection.length;
 
-            if (params['shuffle'])
+            if (params.shuffle) {
                 shuffleFrames();
+            }
 
             sliderWidth = sliderDomObject.width();
             sliderHeight = $('.jet-slider-frames', sliderDomObject).height();
             buildFrames();
-            if (params['resizable'])
+
+            if (params.resizable) {
                 $(window).resize(makeResize);
+            }
 
             bindNavEvents();
             bindIndicatorEvents();
             buildTips();
 
-            if (autoMode)
+            if (autoMode) {
                 setAutoMode();
-
+            }
             checkSliderReady();
         }
 
@@ -175,50 +187,60 @@
 
             $('.jet-slider-button-forward', sliderDomObject).click(function() {
                 forward();
-                if (autoMode) updateAutoModeInterval();
+                if (autoMode) {
+                    updateAutoModeInterval();
+                }
                 return false;
             });
 
             $('.jet-slider-button-back', sliderDomObject).click(function() {
                 back();
-                if (autoMode) updateAutoModeInterval();
+                if (autoMode) {
+                    updateAutoModeInterval();
+                }
                 return false;
             });
 
             framesCollection.bind('touchstart', function(e) {
                 e.preventDefault();
-                var touchesList = e.originalEvent['changedTouches'];
-                if (touchesList && touchesList.length)
-                    startTouchX = touchesList[0]['pageX'];
-                else
+                var touchesList = e.originalEvent.changedTouches;
+                if (touchesList && touchesList.length > 0) {
+                    startTouchX = touchesList[0].pageX;
+                } else {
                     startTouchX = 0;
+                }
             });
 
             framesCollection.bind('touchend', function(e) {
                 e.preventDefault();
-                var touchesList = e.originalEvent['changedTouches'];
+                var touchesList = e.originalEvent.changedTouches;
                 if (touchesList && touchesList.length) {
-                    if (touchesList[0]['pageX'] < startTouchX)
+                    if (touchesList[0].pageX < startTouchX) {
                         back();
-                    else
+                    } else {
                         forward();
+                    }
                 }
-                if (autoMode) updateAutoModeInterval();
+                if (autoMode) {
+                    updateAutoModeInterval();
+                }
             });
         }
 
         function bindIndicatorEvents() {
             $('.jet-slider-indicator a', sliderDomObject).click(function() {
-                var targFrame = this.href.replace(/.+-(\d+)$/, '$1');
-                targFrame = parseInt(targFrame);
+                var targetFrame = this.href.replace(/.+-(\d+)$/, '$1');
+                targetFrame = parseInt(targetFrame);
 
-                var deltaFrame = targFrame + framesOffset;
-                if (deltaFrame > 0)
+                var deltaFrame = targetFrame + framesOffset;
+                if (deltaFrame > 0) {
                     forward(deltaFrame);
-                else
+                } else {
                     back(-deltaFrame);
-
-                if (autoMode) updateAutoModeInterval();
+                }
+                if (autoMode) {
+                    updateAutoModeInterval();
+                }
                 return false;
             });
 
@@ -238,11 +260,13 @@
         }
 
         function fillTipText(useFade) {
-            if (useFade == undefined)
+            if (typeof useFade === "undefined") {
                 useFade = true;
+            }
 
-            if (useFade)
+            if (useFade) {
                 tipWindowNode.hide();
+            }
 
             var currentFrameNumber = 1 - framesOffset;
             var oCurrentFrameImage = $('.jet-slider-frames li:nth-child(' + currentFrameNumber + ') img', sliderDomObject);
@@ -250,10 +274,11 @@
 
             if (text) {
                 tipWindowNode.html(text);
-                if (useFade)
+                if (useFade) {
                     tipWindowNode.fadeIn();
-                else
+                } else {
                     tipWindowNode.show();
+                }
             }
             else {
                 tipWindowNode.hide();
@@ -261,26 +286,57 @@
         }
 
         function setAutoMode() {
-            if (!('delay' in params) || params['delay'] > maxDelay || params['delay'] < minDelay)
+            if (!('delay' in params) || params.delay > maxDelay || params.delay < minDelay) {
                 delay = 5000 + rewindDuration;
-            else
-                delay = params['delay'] + rewindDuration;
+            } else {
+                delay = params.delay + rewindDuration;
+            }
 
+            _delay = delay;
             sliderDomObject.bind('onSliderInit', function(){
                 updateAutoModeInterval();
             });
         }
 
         function updateAutoModeInterval() {
+            updateDelay();
             clearInterval(autoHandler);
             autoHandler = setInterval(function() {
                 forward();
             }, delay);
+
+            sliderDomObject.bind('onEnterFrame', function(){
+                var _cdel = delay;
+                var _ndel = updateDelay();
+                if (_cdel !== _ndel) {
+                    updateAutoModeInterval();
+                }
+            });
+        }
+
+        function updateDelay() {
+            var active = getActiveFrame();
+            if (active.attr('data-delay')) {
+                var loc_delay = parseInt(active.attr('data-delay'));
+                if (!isNaN(loc_delay) && assertDelay(loc_delay)) {
+                    delay = loc_delay;
+                } else {
+                    delay = _delay;
+                }
+            } else {
+                delay = _delay;
+            }
+
+            function assertDelay(del) {
+                return (del > 2000 && del < 20000);
+            }
+
+            return delay;
         }
 
         function checkSliderReady() {
             var imgCollection = $('img', sliderDomObject);
-            if (imgCollection.length == 0) {
+            if (imgCollection.length === 0) {
                 sliderDomObject.trigger('onSliderInit', [jetSliderSelf]);
                 return;
             }
@@ -293,8 +349,9 @@
 
             var loaded = 0;
             imgCollection.load(function() {
-                if (++loaded == imgCollection.length)
+                if (++loaded === imgCollection.length) {
                     sliderDomObject.trigger('onSliderInit', [jetSliderSelf]);
+                }
             });
 
             imgCollection.each(function() {
@@ -304,11 +361,13 @@
         }
 
         function forward(n) {
-            if (lockRewind)
+            if (lockRewind) {
                 return;
+            }
 
-            if (n == undefined)
+            if (typeof n === "undefined") {
                 n = 1;
+            }
 
             oldOffset = framesOffset;
             framesOffset -= n;
@@ -316,11 +375,13 @@
         }
 
         function back(n) {
-            if (lockRewind)
+            if (lockRewind) {
                 return;
+            }
 
-            if (n == undefined)
+            if (typeof n === "undefined") {
                 n = 1;
+            }
 
             oldOffset = framesOffset;
             framesOffset += n;
@@ -330,11 +391,11 @@
         function makeRewind() {
             lockRewind = true;
 
-            if (params['transition_effect'] == 'moon')
+            if (params.transition_effect === 'moon') {
                 moonRewind();
-            else
+            } else {
                 standardRewind();
-
+            }
             sliderDomObject.trigger('onRewindStart', [jetSliderSelf]);
         }
 
@@ -343,11 +404,11 @@
 
             var preShiftValue = sliderWidth * 0.1;
             var leftPreShift;
-            if (shiftParams['dlt_frames'] > 0)
+            if (shiftParams.dlt_frames > 0) {
                 leftPreShift = '+=' + preShiftValue + 'px';
-            else
+            } else {
                 leftPreShift = '-=' + preShiftValue + 'px';
-
+            }
             var animParams = {
                 'left': leftPreShift,
                 'opacity': 0
@@ -358,21 +419,23 @@
                 framesCollection.hide();
                 activeFrame.css('left', 0);
                 activeFrame.css('opacity', 1);
-                framesCollection.css('left', shiftParams['targ_left']);
+                framesCollection.css('left', shiftParams.targ_left);
                 changeActiveFrame();
 
-                if (lockAdditionalAnimation)
+                if (lockAdditionalAnimation) {
                     onComplete();
-                else
+                } else {
                     showNewFrameAnimated();
+                }
             }
 
             function showNewFrameAnimated() {
                 var leftPreShift;
-                if (shiftParams['dlt_frames'] > 0)
+                if (shiftParams.dlt_frames > 0) {
                     leftPreShift = '-=' + preShiftValue + 'px';
-                else
+                } else {
                     leftPreShift = '+=' + preShiftValue + 'px';
+                }
                 activeFrame.css('left', leftPreShift);
                 activeFrame.css('opacity', 0);
 
@@ -397,11 +460,11 @@
             var targLeftValue = Math.abs(sliderWidth * dltFrames);
 
             var targLeft;
-            if (dltFrames > 0)
+            if (dltFrames > 0) {
                 targLeft = '+=' + targLeftValue + 'px';
-            else
+            } else {
                 targLeft = '-=' + targLeftValue + 'px';
-
+            }
             return {'targ_left': targLeft, 'dlt_frames': dltFrames};
         }
 
@@ -434,7 +497,7 @@
         }
 
         function standardRewind() {
-            var targLeft = makeFramesShiftParams()['targ_left'];
+            var targLeft = makeFramesShiftParams().targ_left;
             var params = {'left': targLeft};
             framesCollection.animate(params, 'slow', onComplete);
 
