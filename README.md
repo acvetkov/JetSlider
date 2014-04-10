@@ -47,7 +47,7 @@ sliderDomNode.bind('onRewindStart', function() {
 });
 
 sliderDomNode.bind("onEnterFrame", function(event, slider) {
-    console.log('enerFrame');
+    console.log('enterFrame');
 });
 
 sliderDomNode.jetSlider(params);
