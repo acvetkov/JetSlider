@@ -10,17 +10,17 @@ Simple jQuery based slider
             <img src="image1.jpg" alt=""/>
         </li>
         <li>
-            <img src="image1.jpg" alt=""/>
+            <img src="image2.jpg" alt=""/>
         </li>
         <li>
-            <img src="image1.jpg" alt=""/>
+            <img src="image3.jpg" alt=""/>
         </li>
     </ul>
     <div class="slider-controls">
         <div id='navigation-switcher-block'>
             <div id='navigation-caption-block'>
                 <div class="jet-slider-button jet-slider-button-back"></div>
-                <div class="jet-slider-button jet-slider-button-forward" id="right-arrow"></div>
+                <div class="jet-slider-button jet-slider-button-forward"></div>
             </div>
         </div>
     </div>
